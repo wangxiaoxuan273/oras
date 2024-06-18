@@ -386,9 +386,13 @@ func (opts *Remote) NewRepository(reference string, common Common, logger logrus
 
 // isPlainHttp returns the plain http flag for a given registry.
 func (opts *Remote) isPlainHttp(registry string) bool {
-	plainHTTP, enforced := opts.plainHTTP()
-	if enforced {
-		return plainHTTP
+	plainHTTP := false
+	if opts.plainHTTP != nil {
+		var enforced bool
+		plainHTTP, enforced = opts.plainHTTP()
+		if enforced {
+			return plainHTTP
+		}
 	}
 	host, _, _ := net.SplitHostPort(registry)
 	if host == "localhost" || registry == "localhost" {
