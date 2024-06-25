@@ -37,7 +37,8 @@ type createOptions struct {
 	option.Common
 	option.Target
 
-	repo string
+	repo   string
+	dstTag string
 
 	sources []option.Target
 }
@@ -46,17 +47,25 @@ func createCmd() *cobra.Command {
 	var opts createOptions
 	cmd := &cobra.Command{
 		Use:   "create [flags] --repo <repo-reference> <name>[:<tag>|@<digest>] [...]",
-		Short: "create an index from provided manifests",
-		Long: `create an index to a registry or an OCI image layout
-Example - create a index to repository 'localhost:5000/hello':
-  oras index create --repo localhost:5000/hello \
-     sha256:xxxx \
-     sha256:xxxx
+		Short: "create and push an index from provided manifests",
+		Long: `create and push an index to a repository or an OCI image layout
+Example - create an index from source manifests tagged s1, s2, s3 in the repository
+ localhost:5000/hello, and push the index without tagging it :
+  oras index create --repo localhost:5000/hello s1 s2 s3
+
+Example - create an index from source manifests tagged s1, s2, s3 in the repository
+ localhost:5000/hello, and push the index with tag 'latest' :
+  oras index create --repo localhost:5000/hello --tag latest s1 s2 s3
 `,
 		Args: cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			// parse the user input
-			opts.RawReference = opts.repo
+			if opts.dstTag != "" {
+				opts.Reference = opts.dstTag
+				opts.RawReference = fmt.Sprintf("%s:%s", opts.repo, opts.dstTag)
+			} else {
+				opts.RawReference = opts.repo
+			}
 			opts.sources = make([]option.Target, len(args))
 			for i, a := range args {
 				// assume inputs are tags, TODO digest check, also need to handle OCI layout case
@@ -75,6 +84,7 @@ Example - create a index to repository 'localhost:5000/hello':
 	}
 
 	cmd.Flags().StringVarP(&opts.repo, "repo", "", "", "reference of the repository or oci layout")
+	cmd.Flags().StringVarP(&opts.dstTag, "tag", "", "", "tag of the created index")
 	_ = cmd.MarkFlagRequired("repo")
 	option.ApplyFlags(&opts, cmd.Flags())
 	return cmd
