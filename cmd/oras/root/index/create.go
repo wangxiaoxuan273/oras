@@ -30,16 +30,17 @@ import (
 	"oras.land/oras-go/v2/errdef"
 	"oras.land/oras-go/v2/registry"
 	"oras.land/oras/cmd/oras/internal/command"
+	oerrors "oras.land/oras/cmd/oras/internal/errors"
 	"oras.land/oras/cmd/oras/internal/option"
+	"oras.land/oras/internal/contentutil"
 )
 
 type createOptions struct {
 	option.Common
 	option.Target
 
-	repo   string
-	dstTag string
-
+	repo    string
+	dstTag  string
 	sources []option.Target
 }
 
@@ -56,21 +57,30 @@ Example - create an index from source manifests tagged s1, s2, s3 in the reposit
 Example - create an index from source manifests tagged s1, s2, s3 in the repository
  localhost:5000/hello, and push the index with tag 'latest' :
   oras index create --repo localhost:5000/hello --tag latest s1 s2 s3
+
+Example - create an index from source manifests using both tags and digests, 
+ and push the index with tag 'latest' :
+  oras index create --repo localhost:5000/hello --tag latest s1 sha256:xxx s3
 `,
 		Args: cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			// parse the user input
+			// check if --tag is used
 			if opts.dstTag != "" {
 				opts.Reference = opts.dstTag
 				opts.RawReference = fmt.Sprintf("%s:%s", opts.repo, opts.dstTag)
 			} else {
 				opts.RawReference = opts.repo
 			}
+			// parse source manifest references
 			opts.sources = make([]option.Target, len(args))
 			for i, a := range args {
-				// assume inputs are tags, TODO digest check, also need to handle OCI layout case
-				ref := fmt.Sprintf("%s:%s", opts.repo, a)
-				m := option.Target{RawReference: ref}
+				var ref string
+				if contentutil.IsDigest(a) {
+					ref = fmt.Sprintf("%s@%s", opts.repo, a)
+				} else {
+					ref = fmt.Sprintf("%s:%s", opts.repo, a)
+				}
+				m := option.Target{RawReference: ref, Remote: opts.Remote}
 				if err := m.Parse(cmd); err != nil {
 					return err
 				}
@@ -79,70 +89,59 @@ Example - create an index from source manifests tagged s1, s2, s3 in the reposit
 			return option.Parse(cmd, &opts)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return createManifest(cmd, opts)
+			return createIndex(cmd, opts)
 		},
 	}
 
-	cmd.Flags().StringVarP(&opts.repo, "repo", "", "", "reference of the repository or oci layout")
+	cmd.Flags().StringVarP(&opts.repo, "repo", "", "", "[required] reference of the repository or oci layout")
 	cmd.Flags().StringVarP(&opts.dstTag, "tag", "", "", "tag of the created index")
 	_ = cmd.MarkFlagRequired("repo")
 	option.ApplyFlags(&opts, cmd.Flags())
-	return cmd
+	return oerrors.Command(cmd, &opts.Target)
 }
 
-func createManifest(cmd *cobra.Command, opts createOptions) error {
+func createIndex(cmd *cobra.Command, opts createOptions) error {
 	ctx, logger := command.GetLogger(cmd, &opts.Common)
-
-	// Prepare dst target
 	dst, err := opts.NewTarget(opts.Common, logger)
 	if err != nil {
 		return err
 	}
-
-	manifests, err := doCopy(cmd, dst, opts, logger)
+	// we assume that the sources and the to be created index are all in the same
+	// repository, so no copy is needed
+	manifests, err := resolveSourceManifests(cmd, opts, logger)
 	if err != nil {
 		return err
 	}
-	if err := doPack(ctx, dst, manifests, opts); err != nil {
+	desc, reader := packIndex(manifests)
+	if err := pushIndex(ctx, dst, desc, opts.Reference, reader); err != nil {
 		return err
 	}
 	return nil
 }
 
-func doCopy(cmd *cobra.Command, dst oras.GraphTarget, destOpts createOptions, logger logrus.FieldLogger) ([]ocispec.Descriptor, error) {
-	baseCopyOptions := oras.DefaultExtendedCopyOptions
-
-	// copy all manifests
-	rOpts := oras.DefaultResolveOptions
-	var copied []ocispec.Descriptor
-	for _, srcOpts := range destOpts.sources {
+func resolveSourceManifests(cmd *cobra.Command, destOpts createOptions, logger logrus.FieldLogger) ([]ocispec.Descriptor, error) {
+	var resolved []ocispec.Descriptor
+	for _, source := range destOpts.sources {
 		var err error
-		// prepare src target
-		src, err := srcOpts.NewReadonlyTarget(cmd.Context(), destOpts.Common, logger)
+		// prepare sourceTarget target
+		sourceTarget, err := source.NewReadonlyTarget(cmd.Context(), destOpts.Common, logger)
 		if err != nil {
-			return copied, err
+			return []ocispec.Descriptor{}, err
 		}
-		if err := srcOpts.EnsureReferenceNotEmpty(cmd, false); err != nil {
-			return nil, err
+		if err := source.EnsureReferenceNotEmpty(cmd, false); err != nil {
+			return []ocispec.Descriptor{}, err
 		}
-
-		copyOptions := baseCopyOptions
 		var desc ocispec.Descriptor
-		desc, err = oras.Resolve(cmd.Context(), src, srcOpts.Reference, rOpts)
+		desc, err = oras.Resolve(cmd.Context(), sourceTarget, source.Reference, oras.DefaultResolveOptions)
 		if err != nil {
-			return copied, fmt.Errorf("failed to resolve %s: %w", srcOpts.Reference, err)
+			return []ocispec.Descriptor{}, fmt.Errorf("failed to resolve %s: %w", source.Reference, err)
 		}
-		err = oras.CopyGraph(cmd.Context(), src, dst, desc, copyOptions.CopyGraphOptions)
-		if err != nil {
-			return copied, err
-		}
-		copied = append(copied, desc)
+		resolved = append(resolved, desc)
 	}
-
-	return copied, nil
+	return resolved, nil
 }
 
-func doPack(ctx context.Context, t oras.Target, manifests []ocispec.Descriptor, opts createOptions) error {
+func packIndex(manifests []ocispec.Descriptor) (ocispec.Descriptor, io.Reader) {
 	// todo: oras-go needs PackIndex
 	index := ocispec.Index{
 		Versioned: specs.Versioned{
@@ -153,20 +152,15 @@ func doPack(ctx context.Context, t oras.Target, manifests []ocispec.Descriptor, 
 		// todo: annotations
 	}
 	content, _ := json.Marshal(index)
-	reader := bytes.NewReader(content)
 	desc := ocispec.Descriptor{
 		Digest:    digest.FromBytes(content),
 		MediaType: ocispec.MediaTypeImageIndex,
 		Size:      int64(len(content)),
 	}
-
-	if err := doPushReference(ctx, desc, opts.Reference, t, reader); err != nil {
-		return err
-	}
-	return nil
+	return desc, bytes.NewReader(content)
 }
 
-func doPushReference(ctx context.Context, desc ocispec.Descriptor, ref string, dst oras.Target, content io.Reader) error {
+func pushIndex(ctx context.Context, dst oras.Target, desc ocispec.Descriptor, ref string, content io.Reader) error {
 	if refPusher, ok := dst.(registry.ReferencePusher); ok {
 		if ref != "" {
 			return refPusher.PushReference(ctx, desc, content, ref)
