@@ -30,14 +30,14 @@ import (
 	"oras.land/oras-go/v2/errdef"
 	"oras.land/oras-go/v2/registry"
 	"oras.land/oras/cmd/oras/internal/command"
-	"oras.land/oras/cmd/oras/internal/display/status/track"
 	"oras.land/oras/cmd/oras/internal/option"
 )
 
 type createOptions struct {
 	option.Common
-	option.Descriptor
 	option.Target
+
+	repo string
 
 	sources []option.Target
 }
@@ -45,25 +45,23 @@ type createOptions struct {
 func createCmd() *cobra.Command {
 	var opts createOptions
 	cmd := &cobra.Command{
-		Use:   "create [flags] <name>[:<tag>|@<digest>] [...]",
-		Short: "create a index to from provided manifests",
-		Long: `create a index to a registry or an OCI image layout
-Example - create a index to repository 'localhost:5000/hello' and tag with 'v1':
-  oras index create localhost:5000/hello:v1 \
-     localhost:5000/hello@sha256:xxxx \
-     localhost:5000/hello@sha256:xxxx
+		Use:   "create [flags] --repo <repo-reference> <name>[:<tag>|@<digest>] [...]",
+		Short: "create an index from provided manifests",
+		Long: `create an index to a registry or an OCI image layout
+Example - create a index to repository 'localhost:5000/hello':
+  oras index create --repo localhost:5000/hello \
+     sha256:xxxx \
+     sha256:xxxx
 `,
-		Args: cobra.MinimumNArgs(2),
+		Args: cobra.MinimumNArgs(1),
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			// parse the user input
-			opts.RawReference = args[0]
-
-			// TODO: args are not enough, requires platform and thus
-			// another option with dedicated parsing
-
-			opts.sources = make([]option.Target, len(args)-1)
-			for i, a := range args[1:] {
-				m := option.Target{RawReference: a}
+			opts.RawReference = opts.repo
+			opts.sources = make([]option.Target, len(args))
+			for i, a := range args {
+				// assume inputs are tags, TODO digest check, also need to handle OCI layout case
+				ref := fmt.Sprintf("%s:%s", opts.repo, a)
+				m := option.Target{RawReference: ref}
 				if err := m.Parse(cmd); err != nil {
 					return err
 				}
@@ -76,7 +74,8 @@ Example - create a index to repository 'localhost:5000/hello' and tag with 'v1':
 		},
 	}
 
-	opts.EnableDistributionSpecFlag()
+	cmd.Flags().StringVarP(&opts.repo, "repo", "", "", "reference of the repository or oci layout")
+	_ = cmd.MarkFlagRequired("repo")
 	option.ApplyFlags(&opts, cmd.Flags())
 	return cmd
 }
@@ -151,28 +150,17 @@ func doPack(ctx context.Context, t oras.Target, manifests []ocispec.Descriptor, 
 		Size:      int64(len(content)),
 	}
 
-	const (
-		promptUploading = "Uploading"
-		promptUploaded  = "Uploaded "
-	)
-
-	// TTY output
-	trackedReader, err := track.NewReader(reader, desc, promptUploading, promptUploaded, opts.TTY)
-	if err != nil {
+	if err := doPushReference(ctx, desc, opts.Reference, t, reader); err != nil {
 		return err
 	}
-	defer trackedReader.StopManager()
-	trackedReader.Start()
-	if err := doPushReference(ctx, desc, opts.Reference, t, trackedReader); err != nil {
-		return err
-	}
-	trackedReader.Done()
 	return nil
 }
 
 func doPushReference(ctx context.Context, desc ocispec.Descriptor, ref string, dst oras.Target, content io.Reader) error {
 	if refPusher, ok := dst.(registry.ReferencePusher); ok {
-		return refPusher.PushReference(ctx, desc, content, ref)
+		if ref != "" {
+			return refPusher.PushReference(ctx, desc, content, ref)
+		}
 	}
 	if err := dst.Push(ctx, desc, content); err != nil {
 		w := errors.Unwrap(err)
@@ -181,6 +169,7 @@ func doPushReference(ctx context.Context, desc ocispec.Descriptor, ref string, d
 		}
 	}
 	if ref == "" {
+		fmt.Println("Digest of the pushed index: ", desc.Digest)
 		return nil
 	}
 	return dst.Tag(ctx, desc, ref)
