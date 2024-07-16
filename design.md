@@ -18,7 +18,7 @@ Create an image index from source manifests. The command auto-detects platform i
 
 #### Usage
 
-`oras manifest index create [flags] <target_index_reference> <source_manifest_reference> [...]`
+`oras manifest index create [flags] <name>[:<tag>|@<digest>] [{<tag>|<digest>}...]`
 
 #### Flags
 
@@ -31,6 +31,8 @@ Create an image index from source manifests. The command auto-detects platform i
 `--annotation` Add annotations for the to-be-created index.
 
 `--artifact-type` Add artifact type information for the to-be-created index.
+
+(May be added in the future) `--output` Output the updated manifest to a location.
 
 #### Aliases
 
@@ -49,23 +51,26 @@ Create an index from source manifests using both tags and digests, and push the 
 
 ### oras manifest index update
 
+Add/Remove a manifest from an image index. The updated index will be created as a new index and the old index will not be deleted. 
+If the user specify the index with a tag, the corresponding tag will be updated to the new index. If the old index has other tags, the remaining tags will not be updated to the new index.
+
 #### Usage
 
-`oras manifest index update [flags] <target_index_reference> <source_manifest_reference> [...]`
+`oras manifest index update <name>{:<tag>|@<digest>} {--add/--remove} [{<tag>|<digest>}...]`
 
 #### Flags
 
-`--add` Add a manifest to the index. The manifest will be added as the last element of the index.
+`--add` (shorthand `-a`) Add a manifest to the index. The manifest will be added as the last element of the index.
 
-`--remove` Remove a manifest from the index.
+`--remove` (shorthand `-r`) Remove a manifest from the index.
 
-(may be added in the future) `--subject` Change the subject field of the index.
-
-(may be added in the future) `--artifact-type` Change the artifact type field of the index.
-
-**Note: One of the above flags must be used, as there has to be something to update.**
+**Note: One of the above flags should be used, as there has to be something to update. Otherwise the command does nothing.**
 
 `--oci-layout` Set the target as an oci image layout.
+
+`--tag` Tag the updated index. Multiple tags can be provided.
+
+(May be added in the future) `--output` Output the updated manifest to a location.
 
 #### Examples
 
