@@ -18,7 +18,7 @@ Create an image index from source manifests. The command auto-detects platform i
 
 #### Usage
 
-`oras manifest index create [flags] <name>[:<tag>|@<digest>] [{<tag>|<digest>}...]`
+`oras manifest index create [flags] <name>[:<tag[,<tag>][...]] [{<tag>|<digest>}...]`
 
 #### Flags
 
