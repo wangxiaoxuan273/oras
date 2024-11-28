@@ -37,3 +37,8 @@ func NewCopyHandler(printer *output.Printer) metadata.CopyHandler {
 func (h *CopyHandler) OnTagged(_ ocispec.Descriptor, tag string) error {
 	return h.printer.Println("Tagged", tag)
 }
+
+// OnCompleted implements metadata.CopyHandler
+func (h *CopyHandler) OnCompleted(desc ocispec.Descriptor) error {
+	return h.printer.Println("Digest:", desc.Digest)
+}

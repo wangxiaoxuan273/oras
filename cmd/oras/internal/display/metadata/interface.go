@@ -90,4 +90,5 @@ type ManifestIndexUpdateHandler ManifestIndexCreateHandler
 // CopyHandler handles metadata output for cp events.
 type CopyHandler interface {
 	TaggedHandler
+	OnCompleted(desc ocispec.Descriptor) error
 }

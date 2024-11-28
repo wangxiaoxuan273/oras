@@ -150,9 +150,7 @@ func runCopy(cmd *cobra.Command, opts *copyOptions) error {
 		}
 	}
 
-	_ = opts.Println("Digest:", desc.Digest) // should be OnCompleted
-
-	return nil
+	return displayMetadata.OnCompleted(desc)
 }
 
 func doCopy(ctx context.Context, copyHandler status.CopyHandler, src oras.ReadOnlyGraphTarget, dst oras.GraphTarget, opts *copyOptions) (ocispec.Descriptor, error) {
