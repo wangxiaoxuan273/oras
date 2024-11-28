@@ -215,6 +215,14 @@ func NewManifestIndexUpdateHandler(outputPath string, printer *output.Printer, p
 }
 
 // NewCopyHandler returns copy handlers.
-func NewCopyHandler(printer *output.Printer, fetcher fetcher.Fetcher, tty bool) (status.CopyHandler, metadata.CopyHandler) {
-	return status.NewTextCopyHandler(printer, fetcher), text.NewCopyHandler(printer)
+func NewCopyHandler(printer *output.Printer, fetcher fetcher.Fetcher, tty *os.File) (status.CopyHandler, metadata.CopyHandler) {
+	var statusHandler status.CopyHandler
+	var metadataHandler metadata.CopyHandler
+	if tty != nil {
+		statusHandler = status.NewTTYCopyHandler(printer, tty)
+	} else {
+		statusHandler = status.NewTextCopyHandler(printer, fetcher)
+	}
+	metadataHandler = text.NewCopyHandler(printer)
+	return statusHandler, metadataHandler
 }

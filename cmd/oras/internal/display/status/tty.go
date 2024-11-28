@@ -26,6 +26,7 @@ import (
 	"oras.land/oras-go/v2"
 	"oras.land/oras-go/v2/content"
 	"oras.land/oras/cmd/oras/internal/display/status/track"
+	"oras.land/oras/cmd/oras/internal/output"
 )
 
 // TTYPushHandler handles TTY status output for push command.
@@ -142,4 +143,68 @@ func (ph *TTYPullHandler) TrackTarget(gt oras.GraphTarget) (oras.GraphTarget, St
 	}
 	ph.tracked = tracked
 	return tracked, tracked.Close, nil
+}
+
+// TTYCopyHandler handles TTY status output for copy events.
+type TTYCopyHandler struct {
+	printer   *output.Printer
+	tty       *os.File
+	tracked   track.GraphTarget
+	committed *sync.Map
+}
+
+// NewTTYCopyHandler returns a new handler for Pull status events.
+func NewTTYCopyHandler(printer *output.Printer, tty *os.File) CopyHandler {
+	return &TTYCopyHandler{
+		printer:   printer,
+		tty:       tty,
+		committed: &sync.Map{},
+	}
+}
+
+// TrackTarget returns a tracked target.
+func (ch *TTYCopyHandler) TrackTarget(gt oras.GraphTarget) (oras.GraphTarget, StopTrackTargetFunc, error) {
+	tracked, err := track.NewTarget(gt, PullPromptDownloading, PullPromptPulled, ch.tty)
+	if err != nil {
+		return nil, nil, err
+	}
+	ch.tracked = tracked
+	return tracked, tracked.Close, nil
+}
+
+// OnCopySkipped implements CopyHandler.
+func (ch *TTYCopyHandler) OnCopySkipped(ctx context.Context, desc ocispec.Descriptor) error {
+	ch.committed.Store(desc.Digest.String(), desc.Annotations[ocispec.AnnotationTitle])
+	return ch.tracked.Prompt(desc, copyPromptExists)
+}
+
+// PreCopy implements CopyHandler.
+func (ch *TTYCopyHandler) PreCopy(ctx context.Context, desc ocispec.Descriptor) error {
+	return nil
+}
+
+// PostCopy implements CopyHandler.
+func (ch *TTYCopyHandler) PostCopy(ctx context.Context, desc ocispec.Descriptor) error {
+	ch.committed.Store(desc.Digest.String(), desc.Annotations[ocispec.AnnotationTitle])
+	successors, err := graph.FilteredSuccessors(ctx, desc, ch.tracked, DeduplicatedFilter(ch.committed))
+	if err != nil {
+		return err
+	}
+	for _, successor := range successors {
+		if err = ch.tracked.Prompt(successor, copyPromptSkipped); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// OnMounted implements CopyHandler.
+func (ch *TTYCopyHandler) OnMounted(ctx context.Context, desc ocispec.Descriptor) error {
+	ch.committed.Store(desc.Digest.String(), desc.Annotations[ocispec.AnnotationTitle])
+	return ch.tracked.Prompt(desc, copyPromptMounted)
+}
+
+// OnCopied implements CopyHandler.
+func (ch *TTYCopyHandler) OnCopied(from string, to string) error {
+	return ch.printer.Println("Copied", from, "=>", to)
 }

@@ -58,6 +58,7 @@ type PullHandler interface {
 
 // CopyHandler handles status output for cp command.
 type CopyHandler interface {
+	TrackTarget(gt oras.GraphTarget) (oras.GraphTarget, StopTrackTargetFunc, error)
 	OnCopySkipped(ctx context.Context, desc ocispec.Descriptor) error
 	PreCopy(ctx context.Context, desc ocispec.Descriptor) error
 	PostCopy(ctx context.Context, desc ocispec.Descriptor) error

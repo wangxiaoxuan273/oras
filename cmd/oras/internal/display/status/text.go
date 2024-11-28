@@ -151,6 +151,11 @@ func NewTextCopyHandler(printer *output.Printer, fetcher content.Fetcher) CopyHa
 	}
 }
 
+// TrackTarget implements CopyHandler.
+func (ch *TextCopyHandler) TrackTarget(gt oras.GraphTarget) (oras.GraphTarget, StopTrackTargetFunc, error) {
+	return gt, discardStopTrack, nil
+}
+
 // OnCopySkipped is called when an object already exists.
 func (ch *TextCopyHandler) OnCopySkipped(_ context.Context, desc ocispec.Descriptor) error {
 	ch.committed.Store(desc.Digest.String(), desc.Annotations[ocispec.AnnotationTitle])
