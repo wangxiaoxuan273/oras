@@ -188,6 +188,11 @@ func (ch *TextCopyHandler) OnMounted(_ context.Context, desc ocispec.Descriptor)
 	return ch.printer.Println(copyPromptMounted, descriptor.ShortDigest(desc), name)
 }
 
+// OnCopied implements CopyHandler.
+func (ch *TextCopyHandler) OnCopied(from string, to string) error {
+	return ch.printer.Println("Copied", from, "=>", to)
+}
+
 // TextManifestIndexCreateHandler handles text status output for manifest index create events.
 type TextManifestIndexCreateHandler struct {
 	printer *output.Printer
