@@ -128,9 +128,9 @@ func runCopy(cmd *cobra.Command, opts *copyOptions) error {
 		return err
 	}
 	ctx = registryutil.WithScopeHint(ctx, dst, auth.ActionPull, auth.ActionPush)
-	copyHandler, handler := display.NewCopyHandler(opts.Printer, dst)
+	displayStatus, displayMetadata := display.NewCopyHandler(opts.Printer, dst, opts.TTY == nil)
 
-	desc, err := doCopy(ctx, copyHandler, src, dst, opts)
+	desc, err := doCopy(ctx, displayStatus, src, dst, opts)
 	if err != nil {
 		return err
 	}
@@ -139,18 +139,18 @@ func runCopy(cmd *cobra.Command, opts *copyOptions) error {
 		// correct source digest
 		opts.From.RawReference = fmt.Sprintf("%s@%s", opts.From.Path, desc.Digest.String())
 	}
-	_ = opts.Println("Copied", opts.From.AnnotatedReference(), "=>", opts.To.AnnotatedReference())
+	_ = opts.Println("Copied", opts.From.AnnotatedReference(), "=>", opts.To.AnnotatedReference()) // should be OnCopied
 
 	if len(opts.extraRefs) != 0 {
 		tagNOpts := oras.DefaultTagNOptions
 		tagNOpts.Concurrency = opts.concurrency
-		tagListener := listener.NewTaggedListener(dst, handler.OnTagged)
+		tagListener := listener.NewTaggedListener(dst, displayMetadata.OnTagged)
 		if _, err = oras.TagN(ctx, tagListener, opts.To.Reference, opts.extraRefs, tagNOpts); err != nil {
 			return err
 		}
 	}
 
-	_ = opts.Println("Digest:", desc.Digest)
+	_ = opts.Println("Digest:", desc.Digest) // should be OnCompleted
 
 	return nil
 }

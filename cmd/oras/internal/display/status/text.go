@@ -154,12 +154,14 @@ func NewTextCopyHandler(printer *output.Printer, fetcher content.Fetcher) CopyHa
 // OnCopySkipped is called when an object already exists.
 func (ch *TextCopyHandler) OnCopySkipped(_ context.Context, desc ocispec.Descriptor) error {
 	ch.committed.Store(desc.Digest.String(), desc.Annotations[ocispec.AnnotationTitle])
-	return ch.printer.PrintStatus(desc, copyPromptExists)
+	name, _ := descriptor.GetTitleOrMediaType(desc)
+	return ch.printer.Println(copyPromptExists, descriptor.ShortDigest(desc), name)
 }
 
 // PreCopy implements PreCopy of CopyHandler.
 func (ch *TextCopyHandler) PreCopy(_ context.Context, desc ocispec.Descriptor) error {
-	return ch.printer.PrintStatus(desc, copyPromptCopying)
+	name, _ := descriptor.GetTitleOrMediaType(desc)
+	return ch.printer.Println(copyPromptCopying, descriptor.ShortDigest(desc), name)
 }
 
 // PostCopy implements PostCopy of CopyHandler.
@@ -170,17 +172,20 @@ func (ch *TextCopyHandler) PostCopy(ctx context.Context, desc ocispec.Descriptor
 		return err
 	}
 	for _, successor := range deduplicated {
-		if err = ch.printer.PrintStatus(successor, copyPromptSkipped); err != nil {
+		name, _ := descriptor.GetTitleOrMediaType(successor)
+		if err = ch.printer.Println(copyPromptSkipped, descriptor.ShortDigest(successor), name); err != nil {
 			return err
 		}
 	}
-	return ch.printer.PrintStatus(desc, copyPromptCopied)
+	name, _ := descriptor.GetTitleOrMediaType(desc)
+	return ch.printer.Println(copyPromptCopied, descriptor.ShortDigest(desc), name)
 }
 
 // OnMounted implements OnMounted of CopyHandler.
 func (ch *TextCopyHandler) OnMounted(_ context.Context, desc ocispec.Descriptor) error {
 	ch.committed.Store(desc.Digest.String(), desc.Annotations[ocispec.AnnotationTitle])
-	return ch.printer.PrintStatus(desc, copyPromptMounted)
+	name, _ := descriptor.GetTitleOrMediaType(desc)
+	return ch.printer.Println(copyPromptMounted, descriptor.ShortDigest(desc), name)
 }
 
 // TextManifestIndexCreateHandler handles text status output for manifest index create events.
