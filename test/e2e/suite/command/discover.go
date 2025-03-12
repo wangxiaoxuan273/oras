@@ -114,6 +114,14 @@ var _ = Describe("ORAS beginners:", func() {
 })
 
 var _ = Describe("1.1 registry users:", func() {
+	type referrer struct {
+		ocispec.Descriptor
+		Manifests []ocispec.Descriptor
+	}
+	type subject struct {
+		ocispec.Descriptor
+		Manifests []referrer
+	}
 	subjectRef := RegistryRef(ZOTHost, ArtifactRepo, foobar.Tag)
 	When("running discover command with json output", func() {
 		format := "json"
@@ -124,12 +132,17 @@ var _ = Describe("1.1 registry users:", func() {
 			Expect(index.Manifests).To(HaveLen(1))
 			Expect(index.Manifests).Should(ContainElement(foobar.SBOMImageReferrer))
 		})
-		It("should discover direct referrers of a subject", func() {
+		It("should discover direct and indirect referrers of a subject by default", func() {
 			bytes := ORAS("discover", subjectRef, "--format", format).Exec().Out.Contents()
-			var index ocispec.Index
-			Expect(json.Unmarshal(bytes, &index)).ShouldNot(HaveOccurred())
-			Expect(index.Manifests).To(HaveLen(1))
-			Expect(index.Manifests).Should(ContainElement(foobar.SBOMImageReferrer))
+			var subject subject
+			// should show direct referrers correctly
+			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
+			Expect(subject.Manifests).To(HaveLen(1))
+			Expect(subject.Manifests).Should(ContainElement(foobar.SBOMImageReferrer))
+			// should show indirect referrers correctly
+			referrer := subject.Manifests[0]
+			Expect(referrer.Manifests).To(HaveLen(1))
+			Expect(referrer.Manifests).Should(ContainElement(foobar.SignatureImageReferrer))
 		})
 
 		It("should discover matched referrer when filtering", func() {
