@@ -88,6 +88,13 @@ var _ = Describe("ORAS beginners:", func() {
 				Exec()
 		})
 
+		It("should fail if given an invalid value for depth", func() {
+			ORAS("discover", RegistryRef(ZOTHost, ImageRepo, foobar.Tag), "--depth", "0").
+				ExpectFailure().
+				MatchErrKeyWords("Error:", "depth value should be at least 1").
+				Exec()
+		})
+
 		It("should fail and show detailed error description if no argument provided", func() {
 			err := ORAS("discover").ExpectFailure().Exec().Err
 			Expect(err).Should(gbytes.Say("Error"))
