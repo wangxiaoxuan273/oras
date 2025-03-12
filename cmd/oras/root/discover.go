@@ -104,7 +104,7 @@ Example - Discover referrers of the manifest tagged 'v1' in an OCI image layout 
 	cmd.Flags().StringVarP(&opts.artifactType, "artifact-type", "", "", "artifact type")
 	cmd.Flags().StringVarP(&opts.Format.FormatFlag, "output", "o", "tree", "[Deprecated] format in which to display referrers (table, json, or tree).")
 	cmd.Flags().BoolVarP(&opts.verbose, "verbose", "v", false, "display full metadata of referrers")
-	cmd.Flags().IntVarP(&opts.depth, "depth", "", 1, "level of indirect referrers to display")
+	cmd.Flags().IntVarP(&opts.depth, "depth", "", 20, "level of indirect referrers to display")
 	opts.SetTypes(
 		option.FormatTypeTree,
 		option.FormatTypeTable,
