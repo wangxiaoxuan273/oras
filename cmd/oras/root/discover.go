@@ -82,6 +82,9 @@ Example - Discover referrers of the manifest tagged 'v1' in an OCI image layout 
 			if err := oerrors.CheckMutuallyExclusiveFlags(cmd.Flags(), "format", "output"); err != nil {
 				return err
 			}
+			if opts.depth < 1 {
+				return errors.New("depth value should be at least 1")
+			}
 			opts.RawReference = args[0]
 			if err := option.Parse(cmd, &opts); err != nil {
 				return err

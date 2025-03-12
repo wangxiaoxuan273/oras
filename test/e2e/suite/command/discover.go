@@ -192,16 +192,16 @@ var _ = Describe("1.1 registry users:", func() {
 	})
 	When("running discover command with table output", func() {
 		format := "table"
-		It("should all referrers of a subject with deprecation hint", func() {
+		It("should show all referrers of a subject with deprecation hint", func() {
 			referrers := []ocispec.Descriptor{foobar.SBOMImageReferrer, foobar.SBOMImageReferrer}
-			ORAS("discover", subjectRef, "-o", format).
+			ORAS("discover", subjectRef, "--format", format, "--depth", "1").
 				MatchErrKeyWords(feature.Deprecated.Mark).
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), foobar.Digest)...).
 				Exec()
 		})
-		It("should all referrers of a subject", func() {
+		It("should show all referrers of a subject", func() {
 			referrers := []ocispec.Descriptor{foobar.SBOMImageReferrer, foobar.SBOMImageReferrer}
-			err := ORAS("discover", subjectRef, "--format", format).
+			err := ORAS("discover", subjectRef, "--format", format, "--depth", "1").
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), foobar.Digest)...).
 				Exec().Err
 			Expect(err).NotTo(gbytes.Say(feature.Deprecated.Mark))
@@ -258,14 +258,14 @@ var _ = Describe("1.0 registry users:", func() {
 
 		It("should discover direct referrers of a subject via table output", func() {
 			referrers := []ocispec.Descriptor{foobar.SBOMImageReferrer}
-			ORAS("discover", subjectRef, "-o", "table").
+			ORAS("discover", subjectRef, "--format", "table", "--depth", "1").
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), foobar.Digest)...).
 				Exec()
 		})
 
 		It("should discover direct referrers explicitly via tag scheme", func() {
 			referrers := []ocispec.Descriptor{foobar.SBOMImageReferrer}
-			ORAS("discover", subjectRef, "-o", "table", "--distribution-spec", "v1.1-referrers-tag").
+			ORAS("discover", subjectRef, "--format", "table", "--distribution-spec", "v1.1-referrers-tag", "--depth", "1").
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), foobar.Digest)...).
 				Exec()
 		})
@@ -341,7 +341,7 @@ var _ = Describe("OCI image layout users:", func() {
 			// prepare
 			root := PrepareTempOCI(ArtifactRepo)
 			subjectRef := LayoutRef(root, foobar.Tag)
-			ORAS("discover", subjectRef, "-o", format, Flags.Layout).
+			ORAS("discover", subjectRef, "--format", format, Flags.Layout, "--depth", "1").
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), foobar.Digest)...).
 				Exec()
 		})
