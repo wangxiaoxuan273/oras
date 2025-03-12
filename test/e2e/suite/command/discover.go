@@ -138,11 +138,11 @@ var _ = Describe("1.1 registry users:", func() {
 			// should show direct referrers correctly
 			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
 			Expect(subject.Manifests).To(HaveLen(1))
-			Expect(subject.Manifests).Should(ContainElement(foobar.SBOMImageReferrer))
+			Expect(subject.Manifests[0].Descriptor).Should(Equal(foobar.SBOMImageReferrer))
 			// should show indirect referrers correctly
 			referrer := subject.Manifests[0]
 			Expect(referrer.Manifests).To(HaveLen(1))
-			Expect(referrer.Manifests).Should(ContainElement(foobar.SignatureImageReferrer))
+			Expect(referrer.Manifests[0]).Should(Equal(foobar.SignatureImageReferrer))
 		})
 
 		It("should discover matched referrer when filtering", func() {
