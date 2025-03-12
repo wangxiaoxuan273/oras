@@ -192,10 +192,9 @@ var _ = Describe("1.1 registry users:", func() {
 	})
 	When("running discover command with table output", func() {
 		format := "table"
-		It("should show all referrers of a subject with deprecation hint", func() {
+		It("should show all referrers of a subject", func() {
 			referrers := []ocispec.Descriptor{foobar.SBOMImageReferrer, foobar.SBOMImageReferrer}
 			ORAS("discover", subjectRef, "--format", format, "--depth", "1").
-				MatchErrKeyWords(feature.Deprecated.Mark).
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), foobar.Digest)...).
 				Exec()
 		})
