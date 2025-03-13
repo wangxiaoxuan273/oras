@@ -278,14 +278,27 @@ var _ = Describe("1.1 registry users:", func() {
 })
 
 var _ = Describe("1.0 registry users:", func() {
+	type referrer struct {
+		ocispec.Descriptor
+		Manifests []ocispec.Descriptor
+	}
+	type subject struct {
+		ocispec.Descriptor
+		Manifests []referrer
+	}
 	subjectRef := RegistryRef(FallbackHost, ArtifactRepo, foobar.Tag)
 	When("running discover command", func() {
-		It("should discover direct referrers of a subject via json output", func() {
-			bytes := ORAS("discover", subjectRef, "-o", "json").Exec().Out.Contents()
-			var index ocispec.Index
-			Expect(json.Unmarshal(bytes, &index)).ShouldNot(HaveOccurred())
-			Expect(index.Manifests).To(HaveLen(1))
-			Expect(index.Manifests).Should(ContainElement(foobar.SBOMImageReferrer))
+		It("should discover all direct and indirect referrers of a subject by default via json output", func() {
+			bytes := ORAS("discover", subjectRef, "--format", "json").Exec().Out.Contents()
+			var subject subject
+			// should show direct referrers correctly
+			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
+			Expect(subject.Manifests).To(HaveLen(1))
+			Expect(subject.Manifests[0].Descriptor).Should(Equal(foobar.SBOMImageReferrer))
+			// should show indirect referrers correctly
+			referrer := subject.Manifests[0]
+			Expect(referrer.Manifests).To(HaveLen(1))
+			Expect(referrer.Manifests[0]).Should(Equal(foobar.SignatureImageReferrer))
 		})
 
 		It("should discover matched referrer when filtering via json output", func() {
@@ -303,11 +316,50 @@ var _ = Describe("1.0 registry users:", func() {
 			Expect(index.Manifests).To(HaveLen(0))
 		})
 
-		It("should discover all referrers of a subject via tree output", func() {
+		It("should discover referrers correctly by depth 1 via json output", func() {
+			bytes := ORAS("discover", subjectRef, "--format", "json", "--depth", "1").Exec().Out.Contents()
+			var subject subject
+			// should show direct referrers correctly
+			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
+			Expect(subject.Manifests).To(HaveLen(1))
+			Expect(subject.Manifests[0].Descriptor).Should(Equal(foobar.SBOMImageReferrer))
+			// should not show indirect referrers
+			referrer := subject.Manifests[0]
+			Expect(referrer.Manifests).To(HaveLen(0))
+		})
+
+		It("should discover referrers correctly by depth 2", func() {
+			bytes := ORAS("discover", subjectRef, "--format", "json", "--depth", "2").Exec().Out.Contents()
+			var subject subject
+			// should show direct referrers correctly
+			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
+			Expect(subject.Manifests).To(HaveLen(1))
+			Expect(subject.Manifests[0].Descriptor).Should(Equal(foobar.SBOMImageReferrer))
+			// should show indirect referrers correctly
+			referrer := subject.Manifests[0]
+			Expect(referrer.Manifests).To(HaveLen(1))
+			Expect(referrer.Manifests[0]).Should(Equal(foobar.SignatureImageReferrer))
+		})
+
+		It("should discover all direct and indirect referrers of a subject by default via tree output", func() {
 			referrers := []ocispec.Descriptor{foobar.SBOMImageReferrer, foobar.SignatureImageReferrer}
 			ORAS("discover", subjectRef, "-o", "tree").
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), RegistryRef(FallbackHost, ArtifactRepo, foobar.Digest))...).
 				Exec()
+		})
+
+		It("should discover referrers correctly by depth 1 via tree output", func() {
+			out := ORAS("discover", subjectRef, "--format", "tree", "--depth", "1").
+				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			Expect(out).To(gbytes.Say(foobar.SBOMImageReferrer.Digest.String()))
+			Expect(out).NotTo(gbytes.Say(foobar.SignatureImageReferrer.Digest.String()))
+		})
+
+		It("should discover referrers correctly by depth 2", func() {
+			out := ORAS("discover", subjectRef, "--format", "tree", "--depth", "2").
+				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			Expect(out).To(gbytes.Say(foobar.SBOMImageReferrer.Digest.String()))
+			Expect(out).To(gbytes.Say(foobar.SignatureImageReferrer.Digest.String()))
 		})
 
 		It("should discover all referrers with annotation via tree output", func() {
@@ -335,17 +387,63 @@ var _ = Describe("1.0 registry users:", func() {
 
 var _ = Describe("OCI image layout users:", func() {
 	When("running discover command with json output", func() {
+		type referrer struct {
+			ocispec.Descriptor
+			Manifests []ocispec.Descriptor
+		}
+		type subject struct {
+			ocispec.Descriptor
+			Manifests []referrer
+		}
 		format := "json"
-		It("should discover direct referrers of a subject", func() {
+		It("should discover direct and indirect referrers of a subject by default", func() {
 			// prepare
 			root := PrepareTempOCI(ArtifactRepo)
 			subjectRef := LayoutRef(root, foobar.Tag)
 			// test
-			bytes := ORAS("discover", subjectRef, "-o", format, Flags.Layout).Exec().Out.Contents()
-			var index ocispec.Index
-			Expect(json.Unmarshal(bytes, &index)).ShouldNot(HaveOccurred())
-			Expect(index.Manifests).To(HaveLen(1))
-			Expect(index.Manifests).Should(ContainElement(foobar.SBOMImageReferrer))
+			bytes := ORAS("discover", subjectRef, "--format", format, Flags.Layout).Exec().Out.Contents()
+			var subject subject
+			// should show direct referrers correctly
+			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
+			Expect(subject.Manifests).To(HaveLen(1))
+			Expect(subject.Manifests[0].Descriptor).Should(Equal(foobar.SBOMImageReferrer))
+			// should show indirect referrers correctly
+			referrer := subject.Manifests[0]
+			Expect(referrer.Manifests).To(HaveLen(1))
+			Expect(referrer.Manifests[0]).Should(Equal(foobar.SignatureImageReferrer))
+		})
+
+		It("should discover referrers correctly by depth 1", func() {
+			// prepare
+			root := PrepareTempOCI(ArtifactRepo)
+			subjectRef := LayoutRef(root, foobar.Tag)
+			// test
+			bytes := ORAS("discover", subjectRef, "--format", format, Flags.Layout, "--depth", "1").Exec().Out.Contents()
+			var subject subject
+			// should show direct referrers correctly
+			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
+			Expect(subject.Manifests).To(HaveLen(1))
+			Expect(subject.Manifests[0].Descriptor).Should(Equal(foobar.SBOMImageReferrer))
+			// should not show indirect referrers
+			referrer := subject.Manifests[0]
+			Expect(referrer.Manifests).To(HaveLen(0))
+		})
+
+		It("should discover referrers correctly by depth 2", func() {
+			// prepare
+			root := PrepareTempOCI(ArtifactRepo)
+			subjectRef := LayoutRef(root, foobar.Tag)
+			// test
+			bytes := ORAS("discover", subjectRef, "--format", format, Flags.Layout, "--depth", "2").Exec().Out.Contents()
+			var subject subject
+			// should show direct referrers correctly
+			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
+			Expect(subject.Manifests).To(HaveLen(1))
+			Expect(subject.Manifests[0].Descriptor).Should(Equal(foobar.SBOMImageReferrer))
+			// should show indirect referrers correctly
+			referrer := subject.Manifests[0]
+			Expect(referrer.Manifests).To(HaveLen(1))
+			Expect(referrer.Manifests[0]).Should(Equal(foobar.SignatureImageReferrer))
 		})
 
 		It("should discover matched referrer when filtering", func() {
@@ -380,9 +478,31 @@ var _ = Describe("OCI image layout users:", func() {
 			root := PrepareTempOCI(ArtifactRepo)
 			subjectRef := LayoutRef(root, foobar.Tag)
 			// test
-			ORAS("discover", subjectRef, "-o", format, Flags.Layout).
+			ORAS("discover", subjectRef, "--format", format, Flags.Layout).
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), LayoutRef(root, foobar.Digest))...).
 				Exec()
+		})
+
+		It("should discover referrers correctly by depth 1", func() {
+			// prepare
+			root := PrepareTempOCI(ArtifactRepo)
+			subjectRef := LayoutRef(root, foobar.Tag)
+			// test
+			out := ORAS("discover", subjectRef, "--format", format, Flags.Layout, "--depth", "1").
+				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			Expect(out).To(gbytes.Say(foobar.SBOMImageReferrer.Digest.String()))
+			Expect(out).NotTo(gbytes.Say(foobar.SignatureImageReferrer.Digest.String()))
+		})
+
+		It("should discover referrers correctly by depth 2", func() {
+			// prepare
+			root := PrepareTempOCI(ArtifactRepo)
+			subjectRef := LayoutRef(root, foobar.Tag)
+			// test
+			out := ORAS("discover", subjectRef, "--format", format, Flags.Layout, "--depth", "2").
+				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			Expect(out).To(gbytes.Say(foobar.SBOMImageReferrer.Digest.String()))
+			Expect(out).To(gbytes.Say(foobar.SignatureImageReferrer.Digest.String()))
 		})
 
 		It("should discover all referrers of a subject with annotations", func() {
