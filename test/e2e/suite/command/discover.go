@@ -132,6 +132,7 @@ var _ = Describe("1.1 registry users:", func() {
 			Expect(index.Manifests).To(HaveLen(1))
 			Expect(index.Manifests).Should(ContainElement(foobar.SBOMImageReferrer))
 		})
+
 		It("should discover direct and indirect referrers of a subject by default", func() {
 			bytes := ORAS("discover", subjectRef, "--format", format).Exec().Out.Contents()
 			var subject subject
@@ -168,6 +169,18 @@ var _ = Describe("1.1 registry users:", func() {
 			Expect(json.Unmarshal(bytes, &index)).ShouldNot(HaveOccurred())
 			Expect(index.Manifests).To(HaveLen(1))
 			Expect(index.Manifests).Should(ContainElement(multi_arch.LinuxAMD64Referrer))
+		})
+
+		It("should discover referrers correctly by depth 1", func() {
+			bytes := ORAS("discover", subjectRef, "--format", format, "--depth", "1").Exec().Out.Contents()
+			var subject subject
+			// should show direct referrers correctly
+			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
+			Expect(subject.Manifests).To(HaveLen(1))
+			Expect(subject.Manifests[0].Descriptor).Should(Equal(foobar.SBOMImageReferrer))
+			// should not show indirect referrers
+			referrer := subject.Manifests[0]
+			Expect(referrer.Manifests).To(HaveLen(0))
 		})
 	})
 
