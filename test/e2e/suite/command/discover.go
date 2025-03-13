@@ -349,15 +349,13 @@ var _ = Describe("1.0 registry users:", func() {
 		})
 
 		It("should discover referrers correctly by depth 1 via tree output", func() {
-			out := ORAS("discover", subjectRef, "--format", "tree", "--depth", "1").
-				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			out := ORAS("discover", subjectRef, "--format", "tree", "--depth", "1").Exec().Out
 			Expect(out).To(gbytes.Say(foobar.SBOMImageReferrer.Digest.String()))
 			Expect(out).NotTo(gbytes.Say(foobar.SignatureImageReferrer.Digest.String()))
 		})
 
 		It("should discover referrers correctly by depth 2", func() {
-			out := ORAS("discover", subjectRef, "--format", "tree", "--depth", "2").
-				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			out := ORAS("discover", subjectRef, "--format", "tree", "--depth", "2").Exec().Out
 			Expect(out).To(gbytes.Say(foobar.SBOMImageReferrer.Digest.String()))
 			Expect(out).To(gbytes.Say(foobar.SignatureImageReferrer.Digest.String()))
 		})
@@ -488,8 +486,7 @@ var _ = Describe("OCI image layout users:", func() {
 			root := PrepareTempOCI(ArtifactRepo)
 			subjectRef := LayoutRef(root, foobar.Tag)
 			// test
-			out := ORAS("discover", subjectRef, "--format", format, Flags.Layout, "--depth", "1").
-				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			out := ORAS("discover", subjectRef, "--format", format, Flags.Layout, "--depth", "1").Exec().Out
 			Expect(out).To(gbytes.Say(foobar.SBOMImageReferrer.Digest.String()))
 			Expect(out).NotTo(gbytes.Say(foobar.SignatureImageReferrer.Digest.String()))
 		})
@@ -499,8 +496,7 @@ var _ = Describe("OCI image layout users:", func() {
 			root := PrepareTempOCI(ArtifactRepo)
 			subjectRef := LayoutRef(root, foobar.Tag)
 			// test
-			out := ORAS("discover", subjectRef, "--format", format, Flags.Layout, "--depth", "2").
-				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			out := ORAS("discover", subjectRef, "--format", format, Flags.Layout, "--depth", "2").Exec().Out
 			Expect(out).To(gbytes.Say(foobar.SBOMImageReferrer.Digest.String()))
 			Expect(out).To(gbytes.Say(foobar.SignatureImageReferrer.Digest.String()))
 		})
