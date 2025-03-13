@@ -182,10 +182,25 @@ var _ = Describe("1.1 registry users:", func() {
 			referrer := subject.Manifests[0]
 			Expect(referrer.Manifests).To(HaveLen(0))
 		})
+
+		It("should discover referrers correctly by depth 2", func() {
+			bytes := ORAS("discover", subjectRef, "--format", format, "--depth", "2").Exec().Out.Contents()
+			var subject subject
+			// should show direct referrers correctly
+			Expect(json.Unmarshal(bytes, &subject)).ShouldNot(HaveOccurred())
+			Expect(subject.Manifests).To(HaveLen(1))
+			Expect(subject.Manifests[0].Descriptor).Should(Equal(foobar.SBOMImageReferrer))
+			// should show indirect referrers correctly
+			referrer := subject.Manifests[0]
+			Expect(referrer.Manifests).To(HaveLen(1))
+			Expect(referrer.Manifests[0]).Should(Equal(foobar.SignatureImageReferrer))
+		})
 	})
 
 	When("running discover command with tree output", func() {
-		referrers := []ocispec.Descriptor{foobar.SBOMImageReferrer, foobar.SBOMImageReferrer, foobar.SignatureImageReferrer, foobar.SignatureImageReferrer}
+		referrers := []ocispec.Descriptor{foobar.SBOMImageReferrer, foobar.SignatureImageReferrer}
+		directReferrers := foobar.SBOMImageReferrer
+		indirectReferrers := foobar.SignatureImageReferrer
 		It("should show as tree by default", func() {
 			ORAS("discover", subjectRef).
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest))...).
@@ -198,7 +213,7 @@ var _ = Describe("1.1 registry users:", func() {
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest))...).
 				Exec()
 		})
-		It("should discover all referrers of a subject", func() {
+		It("should discover all direct and indirect referrers of a subject by default", func() {
 			err := ORAS("discover", subjectRef, "--format", format).
 				MatchKeyWords(append(discoverKeyWords(false, referrers...), RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest))...).
 				Exec().Err
@@ -221,6 +236,20 @@ var _ = Describe("1.1 registry users:", func() {
 			ORAS("discover", RegistryRef(ZOTHost, ArtifactRepo, "multi"), "--format", format).
 				MatchKeyWords("<unknown>").
 				Exec()
+		})
+
+		It("should discover referrers correctly by depth 1", func() {
+			out := ORAS("discover", subjectRef, "--format", format, "--depth", "1").
+				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			Expect(out).To(gbytes.Say(directReferrers.Digest.String()))
+			Expect(out).NotTo(gbytes.Say(indirectReferrers.Digest.String()))
+		})
+
+		It("should discover referrers correctly by depth 2", func() {
+			out := ORAS("discover", subjectRef, "--format", format, "--depth", "2").
+				MatchKeyWords(RegistryRef(ZOTHost, ArtifactRepo, foobar.Digest)).Exec().Out
+			Expect(out).To(gbytes.Say(directReferrers.Digest.String()))
+			Expect(out).To(gbytes.Say(indirectReferrers.Digest.String()))
 		})
 	})
 	When("running discover command with table output", func() {
