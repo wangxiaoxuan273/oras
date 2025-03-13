@@ -68,6 +68,9 @@ Example - [Experimental] Discover referrers and display in a table view:
 Example - [Experimental] Discover referrers and format output with Go template:
   oras discover localhost:5000/hello:v1 --format go-template --template "{{.manifests}}"
 
+Example - [Experimental] Discover only direct referrers, displayed in json view:
+  oras discover localhost:5000/hello:v1 --format json --depth 1
+
 Example - Discover all the referrers of manifest with annotations, displayed in a tree view:
   oras discover -v localhost:5000/hello:v1
 
@@ -107,7 +110,7 @@ Example - Discover referrers of the manifest tagged 'v1' in an OCI image layout 
 	cmd.Flags().StringVarP(&opts.artifactType, "artifact-type", "", "", "artifact type")
 	cmd.Flags().StringVarP(&opts.Format.FormatFlag, "output", "o", "tree", "[Deprecated] format in which to display referrers (table, json, or tree).")
 	cmd.Flags().BoolVarP(&opts.verbose, "verbose", "v", false, "display full metadata of referrers")
-	cmd.Flags().IntVarP(&opts.depth, "depth", "", 0, "level of referrers to display, if unused shows referrers of all levels")
+	cmd.Flags().IntVarP(&opts.depth, "depth", "", 0, "[Experimental] level of referrers to display, if unused shows referrers of all levels")
 	opts.SetTypes(
 		option.FormatTypeTree,
 		option.FormatTypeTable,
