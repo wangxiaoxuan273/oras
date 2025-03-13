@@ -82,7 +82,7 @@ Example - Discover referrers of the manifest tagged 'v1' in an OCI image layout 
 			if err := oerrors.CheckMutuallyExclusiveFlags(cmd.Flags(), "format", "output"); err != nil {
 				return err
 			}
-			if opts.depth < 1 {
+			if cmd.Flags().Changed("depth") && opts.depth < 1 {
 				return errors.New("depth value should be at least 1")
 			}
 			opts.RawReference = args[0]
@@ -107,7 +107,7 @@ Example - Discover referrers of the manifest tagged 'v1' in an OCI image layout 
 	cmd.Flags().StringVarP(&opts.artifactType, "artifact-type", "", "", "artifact type")
 	cmd.Flags().StringVarP(&opts.Format.FormatFlag, "output", "o", "tree", "[Deprecated] format in which to display referrers (table, json, or tree).")
 	cmd.Flags().BoolVarP(&opts.verbose, "verbose", "v", false, "display full metadata of referrers")
-	cmd.Flags().IntVarP(&opts.depth, "depth", "", 20, "level of indirect referrers to display")
+	cmd.Flags().IntVarP(&opts.depth, "depth", "", 0, "level of referrers to display, if unused shows referrers of all levels")
 	opts.SetTypes(
 		option.FormatTypeTree,
 		option.FormatTypeTable,
@@ -148,7 +148,7 @@ func runDiscover(cmd *cobra.Command, opts *discoverOptions) error {
 }
 
 func fetchAllReferrers(ctx context.Context, repo oras.ReadOnlyGraphTarget, desc ocispec.Descriptor, artifactType string, handler metadata.DiscoverHandler, currentDepth int, depth int) error {
-	if currentDepth >= depth {
+	if depth != 0 && currentDepth >= depth {
 		return nil
 	}
 	results, err := registry.Referrers(ctx, repo, desc, artifactType)
